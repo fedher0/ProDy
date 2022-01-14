@@ -300,6 +300,9 @@ class PDBEnsemble(Ensemble):
         # check weights
         if weights is None:
             weights = np.ones((n_csets, n_atoms, 1), dtype=float)
+            if isinstance(atoms, Atomic):
+                if np.all(atoms.getOccupancies() <= 1.):
+                    weights = atoms.getOccupancies()
         else:
             weights = checkWeights(weights, n_atoms, n_csets)
 
@@ -420,7 +423,7 @@ class PDBEnsemble(Ensemble):
                                'the same time')
 
         # appending new data
-        if self._data is not None and adddata is not None:
+        if not (self._data is None and adddata is None):
             if self._data is None:
                 self._data = {}
             if adddata is None:
