@@ -1009,7 +1009,23 @@ def assignBlocks(atoms, res_per_block=None, secstr=False, **kwargs):
 
                 unique_blocks, lengths = unique(blocks, return_counts=True)
                 max_length = max(lengths)
-        
+    
+    unique_blocks = unique(blocks)
+    for i in unique_blocks:
+        block = where(blocks == i)[0]
+        if len(block) < shortest_block:
+            block_im1 = where(blocks == i-1)[0]
+            block_ip1 = where(blocks == i+1)[0]
+
+            dist_back = calcDistance(atoms[block_im1][-1], atoms[block][0])
+            dist_fwd = calcDistance(atoms[block][-1], atoms[block_ip1][0])
+
+            if dist_back < min_dist_cutoff:
+                # join onto previous block
+                blocks[where(blocks == i)[0]] = i-1
+            elif dist_fwd < min_dist_cutoff:
+                # join onto next block
+                blocks[where(blocks == i)[0]] = i+1                
 
     blocks, amap = extendAtomicData(blocks, sel_ca, atoms)
 
