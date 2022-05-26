@@ -15,7 +15,7 @@ from prody.utilities import openFile
 from prody import LOGGER, SETTINGS
 
 from .localpdb import fetchPDB
-from .starfile import parseSTARLines, StarDict
+from .starfile import parseSTARLines, StarDict, parseSTARSection
 from .cifheader import getCIFHeaderDict
 from .header import buildBiomolecules, assignSecstr, isHelix, isSheet
 
@@ -72,6 +72,10 @@ def parseMMCIF(pdb, **kwargs):
     """
     chain = kwargs.pop('chain', None)
     title = kwargs.get('title', None)
+    auto_bonds = SETTINGS.get('auto_bonds')
+    get_bonds = kwargs.get('bonds', auto_bonds)
+    if get_bonds:
+        LOGGER.warn('Parsing struct_conn information from mmCIF is current unsupported and no bond information is added to the results')
     if not os.path.isfile(pdb):
         if len(pdb) == 5 and pdb.isalnum():
             if chain is None:
@@ -405,6 +409,46 @@ def _parseMMCIFLines(atomgroup, lines, model, chain, subset,
     atomgroup.setMasses(getMasses(elements[:modelSize]))
     atomgroup.setBetas(bfactors[:modelSize])
     atomgroup.setOccupancies(occupancies[:modelSize])
+
+    anisou = None
+    siguij = None
+    try:
+        data = parseSTARSection(lines, "_atom_site_anisotrop")
+        x = data[0] # check if data has anything in it
+    except IndexError:
+        LOGGER.warn("No anisotropic B factors found")
+    else:
+        anisou = np.zeros((acount, 6),
+                          dtype=ATOMIC_FIELDS['anisou'].dtype)
+        
+        if "_atom_site_anisotrop.U[1][1]_esd" in data[0].keys():
+            siguij = np.zeros((alength, 6),
+                dtype=ATOMIC_FIELDS['siguij'].dtype)
+
+        for entry in data:
+            try:
+                index = np.where(atomgroup.getSerials() == int(
+                    entry["_atom_site_anisotrop.id"]))[0][0]
+            except:
+                continue
+            
+            anisou[index, 0] = entry['_atom_site_anisotrop.U[1][1]']
+            anisou[index, 1] = entry['_atom_site_anisotrop.U[2][2]']
+            anisou[index, 2] = entry['_atom_site_anisotrop.U[3][3]']
+            anisou[index, 3] = entry['_atom_site_anisotrop.U[1][2]']
+            anisou[index, 4] = entry['_atom_site_anisotrop.U[1][3]']
+            anisou[index, 5] = entry['_atom_site_anisotrop.U[2][3]'] 
+
+            if siguij is not None:
+                siguij[index, 0] = entry['_atom_site_anisotrop.U[1][1]_esd']
+                siguij[index, 1] = entry['_atom_site_anisotrop.U[2][2]_esd']
+                siguij[index, 2] = entry['_atom_site_anisotrop.U[3][3]_esd']
+                siguij[index, 3] = entry['_atom_site_anisotrop.U[1][2]_esd']
+                siguij[index, 4] = entry['_atom_site_anisotrop.U[1][3]_esd']
+                siguij[index, 5] = entry['_atom_site_anisotrop.U[2][3]_esd']
+
+        atomgroup.setAnisous(anisou) # no division needed anymore
+        atomgroup.setAnistds(siguij) # no division needed anymore
 
     for n in range(1, nModels):
         atomgroup.addCoordset(coordinates[n*modelSize:(n+1)*modelSize])

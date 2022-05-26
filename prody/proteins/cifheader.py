@@ -1005,123 +1005,69 @@ def _getPolymers(lines):
 
     # COMPND double block. 
     # Block 6 has most info. Block 7 has synonyms
-    i = 0
-    fields6 = OrderedDict()
-    fieldCounter6 = -1
-    foundPolyBlock6 = False
-    foundPolyBlockData6 = False
-    donePolyBlock6 = False
-    foundPolyBlock7 = False
-    donePolyBlock7 = False
-    fields7 = OrderedDict()
-    fieldCounter7 = -1
-    start6 = 0
-    stop6 = 0
-    stop7 = 0
-    while not donePolyBlock7 and i < len(lines):
-        line = lines[i]
-        if line.split('.')[0] == '_entity':
-            fieldCounter6 += 1
-            fields6[line.split('.')[1].strip()] = fieldCounter6
-            if not foundPolyBlock6:
-                start6 = i
-                foundPolyBlock6 = True
+    data6 = parseSTARSection(lines, "_entity")
+    data7 = parseSTARSection(lines, "_entity_name_com")
 
-        if line.split('.')[0] == '_entity_name_com':
-            fieldCounter7 += 1
-            fields7[line.split('.')[1].strip()] = fieldCounter7
-            if not foundPolyBlock7:
-                foundPolyBlock7 = True
+    dict_ = {}
+    for molecule in data6:
+        dict_.clear()
+        for k, value in molecule.items():
+            if k == '_entity.id':
+                dict_['CHAIN'] = ', '.join(entities[value])
 
-        if foundPolyBlock6:
-            if not line.startswith('#'):
-                if not foundPolyBlockData6:
-                    foundPolyBlockData6 = True
-            else:
-                if foundPolyBlock6 and not foundPolyBlock7:
-                    donePolyBlock6 = True
-                    stop6 = i
-
-                if foundPolyBlock7:
-                    donePolyBlock7 = True
-                    stop7 = i
-
-        i += 1
-
-    if i < len(lines):
-        star_dict6, _ = parseSTARLines(lines[:2] + lines[start6-1:stop6], shlex=True)
-        loop_dict6 = list(star_dict6.values())[0]
-
-        data6 = list(loop_dict6[0]["data"].values())
-
-        star_dict7, _ = parseSTARLines(lines[:2] + lines[stop6:stop7], shlex=True)
-        loop_dict7 = list(star_dict7.values())[0]
-
-        if lines[stop6+1].strip() == "loop_":
-            data7 = loop_dict7[0]["data"].values()
-        else:
-            data7 = [loop_dict7["data"]]
-
-        dict_ = {}
-        for molecule in data6:
-            dict_.clear()
-            for k, value in molecule.items():
-                if k == '_entity.id':
-                    dict_['CHAIN'] = ', '.join(entities[value])
-
-                try:
-                    key = _COMPND_KEY_MAPPINGS[k]
-                except:
-                    continue
-                val = value.strip()
-                if val == '?':
-                    val = ''
-                dict_[key.strip()] = val
-
-            chains = dict_.pop('CHAIN', '').strip()
-
-            if not chains:
+            try:
+                key = _COMPND_KEY_MAPPINGS[k]
+            except:
                 continue
-            for ch in chains.split(','):
-                ch = ch.strip()
-                poly = polymers.get(ch, Polymer(ch))
-                polymers[ch] = poly
-                poly.name = dict_.get('MOLECULE', '').upper()
+            val = value.strip()
+            if val == '?':
+                val = ''
+            dict_[key.strip()] = val
 
-                poly.fragment = dict_.get('FRAGMENT', '').upper()
+        chains = dict_.pop('CHAIN', '').strip()
 
-                poly.comments = dict_.get('OTHER_DETAILS', '').upper()
+        if not chains:
+            continue
+        for ch in chains.split(','):
+            ch = ch.strip()
+            poly = polymers.get(ch, Polymer(ch))
+            polymers[ch] = poly
+            poly.name = dict_.get('MOLECULE', '').upper()
 
-                val = dict_.get('EC', '')
-                poly.ec = [s.strip() for s in val.split(',')] if val else []
+            poly.fragment = dict_.get('FRAGMENT', '').upper()
 
-                poly.mutation = dict_.get('MUTATION', '') != ''
-                poly.engineered = dict_.get('ENGINEERED', poly.mutation)
+            poly.comments = dict_.get('OTHER_DETAILS', '').upper()
 
-        for molecule in data7:
-            dict_.clear()
-            for k, value in molecule.items():
-                if k.find('entity_id') != -1:
-                    dict_['CHAIN'] = ', '.join(entities[value])
+            val = dict_.get('EC', '')
+            poly.ec = [s.strip() for s in val.split(',')] if val else []
 
-                try:
-                    key = _COMPND_KEY_MAPPINGS[k]
-                except:
-                    continue
-                dict_[key.strip()] = value.strip()
+            poly.mutation = dict_.get('MUTATION', '') != ''
+            poly.engineered = dict_.get('ENGINEERED', poly.mutation)
 
-            chains = dict_.pop('CHAIN', '').strip()
+    for molecule in data7:
+        dict_.clear()
+        for k, value in molecule.items():
+            if k.find('entity_id') != -1:
+                dict_['CHAIN'] = ', '.join(entities[value])
 
-            if not chains:
+            try:
+                key = _COMPND_KEY_MAPPINGS[k]
+            except:
                 continue
-            for ch in chains.split(','):
-                ch = ch.strip()
-                poly = polymers.get(ch, Polymer(ch))
-                polymers[ch] = poly
+            dict_[key.strip()] = value.strip()
 
-                val = dict_.get('SYNONYM', '')
-                poly.synonyms = [s.strip().upper() for s in val.split(',')
-                                    ] if val else []
+        chains = dict_.pop('CHAIN', '').strip()
+
+        if not chains:
+            continue
+        for ch in chains.split(','):
+            ch = ch.strip()
+            poly = polymers.get(ch, Polymer(ch))
+            polymers[ch] = poly
+
+            val = dict_.get('SYNONYM', '')
+            poly.synonyms = [s.strip().upper() for s in val.split(',')
+                                ] if val else []
 
     return list(polymers.values())
 
@@ -1140,152 +1086,59 @@ def _getChemicals(lines):
     # 1st block we need is has info about location in structure
 
     # this instance only includes single sugars not branched structures
-    i = 0
-    fields1 = OrderedDict()
-    fieldCounter1 = -1
-    foundChemBlock1 = False
-    foundChemBlockData1 = False
-    doneChemBlock1 = False
-    start1 = 0
-    stop1 = 0
-    while not doneChemBlock1 and i < len(lines):
-        line = lines[i]
-        if line[:21] == '_pdbx_nonpoly_scheme.':
-            fieldCounter1 += 1
-            fields1[line.split('.')[1].strip()] = fieldCounter1
-            if not foundChemBlock1:
-                foundChemBlock1 = True
+    items = parseSTARSection(lines, "_pdbx_nonpoly_scheme")
 
-        if foundChemBlock1:
-            if not line.startswith('#') and not line.startswith('_'):
-                if not foundChemBlockData1:
-                    start1 = i
-                    foundChemBlockData1 = True
-            else:
-                if foundChemBlockData1:
-                    doneChemBlock1 = True
-                    stop1 = i
+    for data in items:
+        resname = data["_pdbx_nonpoly_scheme.mon_id"]
+        if resname in flags.AMINOACIDS or resname == "HOH":
+            continue
 
-        i += 1
+        chem = Chemical(resname)
+        chem.chain = data["_pdbx_nonpoly_scheme.pdb_strand_id"]
+        chem.resnum = int(data["_pdbx_nonpoly_scheme.pdb_seq_num"])
 
-    if i < len(lines):
-        for line in lines[start1:stop1]:
-            data = split(line, shlex=True)
-
-            resname = data[fields1["mon_id"]]
-            if resname in flags.AMINOACIDS or resname == "HOH":
-                continue
-
-            chem = Chemical(resname)
-            chem.chain = data[fields1["pdb_strand_id"]]
-            chem.resnum = int(data[fields1["pdb_seq_num"]])
-
-            icode = data[fields1["pdb_ins_code"]]
-            if icode == '.':
-                icode = ''
-            chem.icode = icode
-            chem.description = '' # often empty in .pdb and not clearly here
-            chemicals[chem.resname].append(chem)
+        icode = data["_pdbx_nonpoly_scheme.pdb_ins_code"]
+        if icode == '.':
+            icode = ''
+        chem.icode = icode
+        chem.description = '' # often empty in .pdb and not clearly here
+        chemicals[chem.resname].append(chem)
 
     # next we get the equivalent one for branched sugars part
-    i = 0
-    fields1 = OrderedDict()
-    fieldCounter1 = -1
-    foundChemBlock1 = False
-    foundChemBlockData1 = False
-    doneChemBlock1 = False
-    start1 = 0
-    stop1 = 0
-    while not doneChemBlock1 and i < len(lines):
-        line = lines[i]
-        if line[:20] == '_pdbx_branch_scheme.':
-            fieldCounter1 += 1
-            fields1[line.split('.')[1].strip()] = fieldCounter1
-            if not foundChemBlock1:
-                foundChemBlock1 = True
+    items = parseSTARSection(lines, "_pdbx_branch_scheme")
 
-        if foundChemBlock1:
-            if not line.startswith('#') and not line.startswith('_'):
-                if not foundChemBlockData1:
-                    start1 = i
-                    foundChemBlockData1 = True
-            else:
-                if foundChemBlockData1:
-                    doneChemBlock1 = True
-                    stop1 = i
+    for data in items:
+        resname = data["_pdbx_branch_scheme.mon_id"]
+        if resname in flags.AMINOACIDS or resname == "HOH":
+            continue
 
-        i += 1
+        chem = Chemical(resname)
+        chem.chain = data["_pdbx_branch_scheme.pdb_asym_id"]
+        chem.resnum = int(data["_pdbx_branch_scheme.pdb_seq_num"])
 
-    if i < len(lines):
-        for line in lines[start1:stop1]:
-            data = split(line, shlex=True)
-
-            resname = data[fields1["mon_id"]]
-            if resname in flags.AMINOACIDS or resname == "HOH":
-                continue
-
-            chem = Chemical(resname)
-            chem.chain = data[fields1["pdb_asym_id"]]
-            chem.resnum = int(data[fields1["pdb_seq_num"]])
-
-            chem.icode = '' # this part doesn't have this field
-            chem.description = '' # often empty in .pdb and not clearly here
-            chemicals[chem.resname].append(chem)
+        chem.icode = '' # this part doesn't have this field
+        chem.description = '' # often empty in .pdb and not clearly here
+        chemicals[chem.resname].append(chem)
 
     # 2nd block to get has general info e.g. name and formula
-    i = 0
-    fields2 = OrderedDict()
-    fieldCounter2 = -1
-    foundChemBlock2 = False
-    foundChemBlockData2 = False
-    doneChemBlock2 = False
-    start2 = 0
-    stop2 = 0
-    while not doneChemBlock2 and i < len(lines):
-        line = lines[i]
-        if line[:11] == '_chem_comp.':
-            fieldCounter2 += 1
-            fields2[line.split('.')[1].strip()] = fieldCounter2
-            if not foundChemBlock2:
-                start2 = i
-                foundChemBlock2 = True
+    items = parseSTARSection(lines, "_chem_comp")
 
-        if foundChemBlock2:
-            if not line.startswith('#') and not line.startswith('_'):
-                if not foundChemBlockData2:
-                    foundChemBlockData2 = True
-            else:
-                if foundChemBlockData2:
-                    doneChemBlock2 = True
-                    stop2 = i
+    for data in items:
+        resname = data["_chem_comp.id"]
+        if resname in flags.AMINOACIDS or resname == "HOH":
+            continue
 
-        i += 1
+        chem_names[resname] += data["_chem_comp.name"].upper()
 
-    if i < len(lines):
-        star_dict, _ = parseSTARLines(lines[:2] + lines[start2-1:stop2], shlex=True)
-        loop_dict = list(star_dict.values())[0]
-
-        if lines[start2-1].strip() == "loop_":
-            items = loop_dict[0]["data"].values()
-        else:
-            items = [loop_dict["data"]]
-
-        for data in items:
-            resname = data["_chem_comp.id"]
-            if resname in flags.AMINOACIDS or resname == "HOH":
-                continue
-
-            chem_names[resname] += data["_chem_comp.name"].upper()
-
-            synonym = data["_chem_comp.pdbx_synonyms"]
-            if synonym == '?':
-                synonym = ' '
-            synonym = synonym.rstrip()
-            if synonym.startswith(';') and synonym.endswith(';'):
-                synonym = synonym[1:-1]
-            chem_synonyms[resname] += synonym
-            
-            chem_formulas[resname] += data["_chem_comp.formula"]
+        synonym = data["_chem_comp.pdbx_synonyms"]
+        if synonym == '?':
+            synonym = ' '
+        synonym = synonym.rstrip()
+        if synonym.startswith(';') and synonym.endswith(';'):
+            synonym = synonym[1:-1]
+        chem_synonyms[resname] += synonym
+        
+        chem_formulas[resname] += data["_chem_comp.formula"]
 
 
     for key, name in chem_names.items():  # PY3K: OK

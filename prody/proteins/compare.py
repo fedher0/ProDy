@@ -913,7 +913,7 @@ def mapChainOntoChain(mobile, target, **kwargs):
     :arg target: chain to which atoms will be mapped
     :type target: :class:`.Chain`
 
-    :keyword seqid: percent sequence identity, default is **90**. Note that This parameter is 
+    :keyword seqid: percent sequence identity, default is **90**. Note that this parameter is 
         only effective for sequence alignment
     :type seqid: float
 
@@ -1394,8 +1394,13 @@ def getCEAlignMapping(target, chain):
                     'It may not be installed properly.')
         return None
 
-    tar_coords = target.getCoords().tolist()
-    mob_coords = chain.getCoords().tolist()
+    if not ("X" in target.getSequence() or "X" in chain.getSequence()):
+        calpha=True
+    else:
+        calpha=False
+
+    tar_coords = target.getCoords(calpha=calpha).tolist()
+    mob_coords = chain.getCoords(calpha=calpha).tolist()
 
     if len(tar_coords) < 8:
         LOGGER.warn('target ({1}) is too small to be aligned '
