@@ -556,7 +556,7 @@ def interpolateModel(model, nodes, coords, norm=False, **kwargs):
     len_cg = nodes.numAtoms()
 
     fg_coords = getCoords(coords)
-    len_fg = fg_coords.shape[0]//3
+    len_fg = fg_coords.shape[0]
 
     n_modes = model.numModes()
 
